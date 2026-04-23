@@ -1,5 +1,6 @@
+import '../styles.css';
 import { SHOWS, FORM_QUESTIONS } from './data.ts';
-import { buildSystemPrompt, sendChatMessage, getRecommendation } from './api.ts';
+import { BAKED_API_KEY, buildSystemPrompt, sendChatMessage, getRecommendation } from './api.ts';
 import type { AppState, Message } from './types.ts';
 
 // ============================
@@ -12,7 +13,7 @@ const state: AppState = {
   formAnswers: {},
   messages: [],
   shows: SHOWS,
-  apiKey: sessionStorage.getItem('ocp_api_key') ?? '',
+  apiKey: BAKED_API_KEY || (sessionStorage.getItem('ocp_api_key') ?? ''),
   isLoading: false,
   matchResult: null,
 };
@@ -32,7 +33,7 @@ function render(): void {
     case 'result':  app.innerHTML = viewResult();  break;
   }
 
-  if (state.isLoading) {
+  if (state.isLoading && state.view !== 'chat') {
     app.insertAdjacentHTML('beforeend', viewLoading());
   }
 
@@ -46,6 +47,20 @@ function render(): void {
 function viewLanding(): string {
   const current  = state.shows.filter((s) => s.isCurrentlyRunning);
   const upcoming = state.shows.filter((s) => !s.isCurrentlyRunning);
+
+  const showCards = state.shows.map((s) => `
+    <div class="landing__show-card">
+      ${s.imageUrl
+        ? `<div class="landing__show-card-img" style="background-image:url('${s.imageUrl}')"></div>`
+        : `<div class="landing__show-card-img landing__show-card-img--empty">🎭</div>`
+      }
+      <div class="landing__show-card-body">
+        <span class="landing__show-card-badge">${s.isCurrentlyRunning ? 'Now Playing' : 'Coming Soon'}</span>
+        <p class="landing__show-card-title">${esc(s.title)}</p>
+        <p class="landing__show-card-dates">${esc(s.dates)}</p>
+      </div>
+    </div>
+  `).join('');
 
   return `
     <nav class="nav">
@@ -79,9 +94,12 @@ function viewLanding(): string {
           </svg>
         </button>
 
-        <div class="landing__shows">
-          ${current.map((s)  => `<span class="landing__show-pill">Now Playing: ${s.title}</span>`).join('')}
-          ${upcoming.map((s) => `<span class="landing__show-pill">Coming Soon: ${s.title}</span>`).join('')}
+        <div class="landing__divider">
+          <span>Now Playing &amp; Coming Soon</span>
+        </div>
+
+        <div class="landing__show-grid">
+          ${showCards}
         </div>
       </div>
 
@@ -102,10 +120,10 @@ function viewApiKey(): string {
     <div class="apikey-screen">
       <div class="apikey-card">
         <div class="apikey-card__icon">🔑</div>
-        <h2>Enter Your API Key</h2>
+        <h2>Enter Your OpenAI Key</h2>
         <p>
           This app uses OpenAI to match you with the perfect show.
-          Enter your OpenAI API key to get started. It's stored only in
+          Enter your OpenAI API key to get started — it's stored only in
           your browser session and sent exclusively to OpenAI's API.
         </p>
 
@@ -137,7 +155,7 @@ function viewApiKey(): string {
 
 function viewForm(): string {
   const question   = FORM_QUESTIONS[state.formStep];
-  const progress   = (state.formStep / FORM_QUESTIONS.length) * 100;
+  const progress   = ((state.formStep + 1) / FORM_QUESTIONS.length) * 100;
   const isMulti    = question.type === 'multi';
   const current    = state.formAnswers[question.id];
   const selected   = isMulti
@@ -162,8 +180,8 @@ function viewForm(): string {
             <div class="progress-bar__fill" style="width:${progress}%"></div>
           </div>
           <div class="progress-bar__label">
-            <span>${state.formStep + 1} of ${FORM_QUESTIONS.length}</span>
-            <span>${isMulti ? 'Select all that apply' : 'Select one'}</span>
+            <span>Question ${state.formStep + 1} of ${FORM_QUESTIONS.length}</span>
+            <span class="progress-bar__type">${isMulti ? 'Select all that apply' : 'Select one'}</span>
           </div>
         </div>
 
@@ -172,18 +190,20 @@ function viewForm(): string {
           ${question.hint ? `<p class="form-question__hint">${question.hint}</p>` : ''}
 
           <div class="answer-grid">
-            ${question.options.map((opt) => `
+            ${question.options.map((opt, i) => `
               <button
                 class="answer-option${selected.includes(opt.value) ? ' selected' : ''}"
                 data-value="${opt.value}"
                 data-question="${question.id}"
                 data-type="${question.type}"
+                style="animation-delay:${i * 40}ms"
               >
                 ${opt.icon ? `<span class="answer-option__icon">${opt.icon}</span>` : ''}
-                <div>
+                <div class="answer-option__content">
                   <div class="answer-option__text">${opt.label}</div>
                   ${opt.sub ? `<div class="answer-option__sub">${opt.sub}</div>` : ''}
                 </div>
+                <div class="answer-option__check">✓</div>
               </button>
             `).join('')}
           </div>
@@ -208,10 +228,10 @@ function viewForm(): string {
 }
 
 function viewChat(): string {
-  const bubbles = state.messages.map((msg) => `
-    <div class="chat-message chat-message--${msg.role}">
+  const bubbles = state.messages.map((msg, i) => `
+    <div class="chat-message chat-message--${msg.role}" style="animation-delay:${i * 30}ms">
       <div class="chat-message__avatar">${msg.role === 'assistant' ? '🎭' : '👤'}</div>
-      <div class="chat-message__bubble">${esc(msg.content)}</div>
+      <div class="chat-message__bubble">${msg.role === 'assistant' ? renderMarkdown(msg.content) : esc(msg.content)}</div>
     </div>
   `).join('');
 
@@ -252,7 +272,7 @@ function viewChat(): string {
           <textarea
             class="chat-input"
             id="chat-input"
-            placeholder="Type your message..."
+            placeholder="Type your message…"
             rows="1"
             ${state.isLoading ? 'disabled' : ''}
           ></textarea>
@@ -282,6 +302,10 @@ function viewResult(): string {
     .map((c) => ({ ...c, show: state.shows.find((s) => s.id === c.showId) }))
     .filter((c) => c.show != null);
 
+  const heroStyle = show.imageUrl
+    ? `style="background-image:url('${show.imageUrl}')"`
+    : '';
+
   return `
     <nav class="nav">
       <div>
@@ -294,23 +318,26 @@ function viewResult(): string {
       <div class="container">
 
         <!-- Hero -->
-        <div class="result-hero">
-          <div class="result-hero__fallback">
-            <div style="text-align:center;opacity:0.25;">
-              <div style="font-size:3.5rem;margin-bottom:10px;">🎭</div>
-              <div style="font-family:var(--font-serif);font-size:1rem;letter-spacing:0.08em;">${esc(show.venue)}</div>
+        <div class="result-hero" ${heroStyle}>
+          ${!show.imageUrl ? `
+            <div class="result-hero__fallback">
+              <div style="text-align:center;opacity:0.25;">
+                <div style="font-size:3.5rem;margin-bottom:10px;">🎭</div>
+                <div style="font-family:var(--font-serif);font-size:1rem;letter-spacing:0.08em;">${esc(show.venue)}</div>
+              </div>
             </div>
-          </div>
+          ` : ''}
           <div class="result-hero__overlay"></div>
           <div class="result-hero__content">
             <div class="result-hero__badge">✦ Your Perfect Match</div>
             <h1 class="result-hero__title">${esc(show.title)}</h1>
             <p class="result-hero__dates">${esc(show.dates)}</p>
+            <p class="result-hero__venue">${esc(show.venue)}</p>
           </div>
         </div>
 
         <!-- Why it's your match -->
-        <div class="result-section">
+        <div class="result-section result-section--highlight">
           <p class="result-section__title">Why It's Your Match</p>
           <p class="result-reason">"${esc(state.matchResult.reason)}"</p>
         </div>
@@ -320,9 +347,13 @@ function viewResult(): string {
           <p class="result-section__title">About the Show</p>
           <p class="result-overview">${esc(show.description)}</p>
 
+          <div class="tag-list mt-16">
+            ${show.genres.map((g) => `<span class="tag tag--gold">${esc(g)}</span>`).join('')}
+          </div>
+
           ${show.contentAdvisory ? `
-            <div class="tag-list mt-16">
-              <span class="tag">⚠ ${esc(show.contentAdvisory)}</span>
+            <div class="tag-list mt-12">
+              <span class="tag tag--warn">⚠ ${esc(show.contentAdvisory)}</span>
             </div>
           ` : ''}
 
@@ -344,12 +375,6 @@ function viewResult(): string {
               <span class="info-item__value">6915 Cass St., Omaha, NE 68132</span>
             </div>
           </div>
-
-          ${show.genres.length > 0 ? `
-            <div class="tag-list mt-16">
-              ${show.genres.map((g) => `<span class="tag tag--gold">${esc(g)}</span>`).join('')}
-            </div>
-          ` : ''}
         </div>
 
         <!-- Tickets -->
@@ -431,13 +456,18 @@ function viewResult(): string {
         <!-- Compare other shows -->
         ${comps.length > 0 ? `
           <div class="result-section">
-            <p class="result-section__title">Also Playing at OCP</p>
+            <p class="result-section__title">Also at OCP This Season</p>
             <div class="compare-grid">
               ${comps.map((c) => c.show ? `
                 <div class="compare-card">
-                  <h3 class="compare-card__title">${esc(c.show.title)}</h3>
-                  <p class="compare-card__dates">${esc(c.show.dates)}</p>
-                  <p class="compare-card__note">${esc(c.note)}</p>
+                  ${c.show.imageUrl ? `
+                    <div class="compare-card__img" style="background-image:url('${c.show.imageUrl}')"></div>
+                  ` : ''}
+                  <div class="compare-card__body">
+                    <h3 class="compare-card__title">${esc(c.show.title)}</h3>
+                    <p class="compare-card__dates">${esc(c.show.dates)}</p>
+                    <p class="compare-card__note">${esc(c.note)}</p>
+                  </div>
                 </div>
               ` : '').join('')}
             </div>
@@ -510,9 +540,9 @@ function attachListeners(): void {
     case 'form': {
       document.querySelectorAll<HTMLButtonElement>('.answer-option').forEach((btn) => {
         btn.addEventListener('click', () => {
-          const value    = btn.dataset['value']!;
-          const qId      = btn.dataset['question']!;
-          const type     = btn.dataset['type']!;
+          const value = btn.dataset['value']!;
+          const qId   = btn.dataset['question']!;
+          const type  = btn.dataset['type']!;
 
           if (type === 'multi') {
             const prev = (state.formAnswers[qId] as string[]) ?? [];
@@ -523,7 +553,6 @@ function attachListeners(): void {
           } else {
             state.formAnswers[qId] = value;
             render();
-            // Auto-advance single-choice after brief pause
             setTimeout(() => {
               if (state.formStep < FORM_QUESTIONS.length - 1) {
                 state.formStep++;
@@ -572,7 +601,6 @@ function attachListeners(): void {
       });
 
       sendBtn?.addEventListener('click', () => void sendUserMessage());
-
       document.getElementById('recommend-btn')?.addEventListener('click', () => void fetchRecommendation());
 
       scrollChatToBottom();
@@ -598,8 +626,8 @@ function attachListeners(): void {
 // ============================
 
 async function startChat(): Promise<void> {
-  state.view     = 'chat';
-  state.messages = [];
+  state.view      = 'chat';
+  state.messages  = [];
   state.isLoading = true;
   render();
 
@@ -657,7 +685,7 @@ async function fetchRecommendation(): Promise<void> {
   render();
 
   try {
-    const result    = await getRecommendation(state.apiKey, state.shows, state.formAnswers, state.messages);
+    const result      = await getRecommendation(state.apiKey, state.shows, state.formAnswers, state.messages);
     state.matchResult = result;
     state.view        = 'result';
   } catch (err) {
@@ -686,6 +714,16 @@ function esc(text: string): string {
   const d = document.createElement('div');
   d.appendChild(document.createTextNode(text));
   return d.innerHTML;
+}
+
+function renderMarkdown(text: string): string {
+  const escaped = esc(text);
+  return escaped
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n\n+/g, '</p><p class="chat-p">')
+    .replace(/\n/g, '<br>')
+    .replace(/^(.+)/, '<p class="chat-p">$1</p>');
 }
 
 // ============================

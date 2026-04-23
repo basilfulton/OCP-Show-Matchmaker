@@ -3,6 +3,8 @@ import type { Message, MatchResult, Show } from './types.ts';
 const API_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4o-mini';
 
+export const BAKED_API_KEY: string = import.meta.env.VITE_OPENAI_API_KEY ?? '';
+
 export function buildSystemPrompt(
   shows: Show[],
   formAnswers: Record<string, string | string[]>
@@ -24,6 +26,7 @@ Guidelines:
 - Be warm, enthusiastic, and knowledgeable about live theatre — like a trusted friend who loves theatre
 - Ask 1–2 focused follow-up questions before committing to a recommendation
 - Keep responses concise and conversational (2–4 sentences unless it's the final pick)
+- Use **bold** for show titles so they stand out
 - When the user clicks "Get My Recommendation," the app handles the structured output separately — just continue the friendly conversation here
 - If asked about anything unrelated to OCP shows, warmly redirect back to the theatre
 - Always encourage attending live theatre`;

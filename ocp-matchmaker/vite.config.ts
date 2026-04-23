@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/basmaniandevil/OCP_AI_Project/ocp-matchmaker/',
+  base: '/OCP-Show-Matchmaker/',
   build: {
     rollupOptions: {
-      input: 'index.src.html',
+      input: 'index.html',
     },
     outDir: 'dist',
     emptyOutDir: true,
