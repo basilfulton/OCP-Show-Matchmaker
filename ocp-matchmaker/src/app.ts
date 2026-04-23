@@ -551,8 +551,13 @@ function attachListeners(): void {
               : [...prev, value];
             render();
           } else {
+            // Update DOM directly so animation only plays once (on advance)
+            document.querySelectorAll<HTMLButtonElement>('.answer-option').forEach((b) => {
+              b.classList.toggle('selected', b.dataset['value'] === value);
+            });
+            const nextBtn = document.getElementById('next-btn');
+            if (nextBtn) nextBtn.removeAttribute('disabled');
             state.formAnswers[qId] = value;
-            render();
             setTimeout(() => {
               if (state.formStep < FORM_QUESTIONS.length - 1) {
                 state.formStep++;
