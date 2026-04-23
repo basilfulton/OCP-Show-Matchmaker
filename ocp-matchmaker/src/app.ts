@@ -1,6 +1,6 @@
 import '../styles.css';
 import { SHOWS, FORM_QUESTIONS } from './data.ts';
-import { BAKED_API_KEY, buildSystemPrompt, sendChatMessage, getRecommendation } from './api.ts';
+import { buildSystemPrompt, sendChatMessage, getRecommendation } from './api.ts';
 import type { AppState, Message } from './types.ts';
 
 // ============================
@@ -13,7 +13,7 @@ const state: AppState = {
   formAnswers: {},
   messages: [],
   shows: SHOWS,
-  apiKey: BAKED_API_KEY || (sessionStorage.getItem('ocp_api_key') ?? ''),
+  apiKey: sessionStorage.getItem('ocp_api_key') ?? '',
   isLoading: false,
   matchResult: null,
 };
@@ -647,7 +647,7 @@ async function startChat(): Promise<void> {
       ...state.messages,
       {
         role: 'assistant',
-        content: `I'm having trouble connecting right now. Please check your API key and try again. (${(err as Error).message})`,
+        content: `I'm having trouble connecting. Please check your API key and try again. (${(err as Error).message})`,
       },
     ];
   }
@@ -685,7 +685,7 @@ async function fetchRecommendation(): Promise<void> {
   render();
 
   try {
-    const result      = await getRecommendation(state.apiKey, state.shows, state.formAnswers, state.messages);
+    const result = await getRecommendation(state.apiKey, state.shows, state.formAnswers, state.messages);
     state.matchResult = result;
     state.view        = 'result';
   } catch (err) {

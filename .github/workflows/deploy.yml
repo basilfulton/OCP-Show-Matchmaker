@@ -35,8 +35,6 @@ jobs:
         run: cd ocp-matchmaker && npm ci
 
       - name: Build
-        env:
-          VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: cd ocp-matchmaker && npm run build
 
       - name: Commit built files to root for GitHub Pages

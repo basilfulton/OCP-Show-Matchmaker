@@ -3,8 +3,6 @@ import type { Message, MatchResult, Show } from './types.ts';
 const API_URL = 'https://api.openai.com/v1/chat/completions';
 const MODEL = 'gpt-4o-mini';
 
-export const BAKED_API_KEY: string = import.meta.env.VITE_OPENAI_API_KEY ?? '';
-
 export function buildSystemPrompt(
   shows: Show[],
   formAnswers: Record<string, string | string[]>
@@ -111,12 +109,7 @@ export async function getRecommendation(
   messages: Message[]
 ): Promise<MatchResult> {
   const prompt = buildRecommendationPrompt(shows, formAnswers, messages);
-
-  const text = await callApi(
-    apiKey,
-    [{ role: 'user', content: prompt }],
-    1024
-  );
+  const text = await callApi(apiKey, [{ role: 'user', content: prompt }], 1024);
 
   try {
     return JSON.parse(text) as MatchResult;
