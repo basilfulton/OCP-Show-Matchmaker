@@ -196,7 +196,7 @@ function viewForm(): string {
                 data-value="${opt.value}"
                 data-question="${question.id}"
                 data-type="${question.type}"
-                style="animation-delay:${i * 40}ms"
+                style="animation-delay:${i * 25}ms"
               >
                 ${opt.icon ? `<span class="answer-option__icon">${opt.icon}</span>` : ''}
                 <div class="answer-option__content">
@@ -538,27 +538,42 @@ function attachListeners(): void {
     }
 
     case 'form': {
+      let advanceTimer: ReturnType<typeof setTimeout> | null = null;
+
       document.querySelectorAll<HTMLButtonElement>('.answer-option').forEach((btn) => {
         btn.addEventListener('click', () => {
+          if (btn.disabled) return;
+
           const value = btn.dataset['value']!;
           const qId   = btn.dataset['question']!;
           const type  = btn.dataset['type']!;
 
           if (type === 'multi') {
+            // Direct DOM update — no full re-render, no animation replay
             const prev = (state.formAnswers[qId] as string[]) ?? [];
-            state.formAnswers[qId] = prev.includes(value)
+            const next = prev.includes(value)
               ? prev.filter((v) => v !== value)
               : [...prev, value];
-            render();
+            state.formAnswers[qId] = next;
+            btn.classList.toggle('selected', next.includes(value));
+
+            const nextBtn = document.getElementById('next-btn') as HTMLButtonElement | null;
+            if (nextBtn) nextBtn.disabled = next.length === 0;
           } else {
-            // Update DOM directly so animation only plays once (on advance)
+            // Guard: ignore clicks while an advance is already pending
+            if (advanceTimer !== null) return;
+
+            // Direct DOM update so animation only plays once (on advance)
             document.querySelectorAll<HTMLButtonElement>('.answer-option').forEach((b) => {
               b.classList.toggle('selected', b.dataset['value'] === value);
+              b.disabled = true;
             });
             const nextBtn = document.getElementById('next-btn');
             if (nextBtn) nextBtn.removeAttribute('disabled');
             state.formAnswers[qId] = value;
-            setTimeout(() => {
+
+            advanceTimer = setTimeout(() => {
+              advanceTimer = null;
               if (state.formStep < FORM_QUESTIONS.length - 1) {
                 state.formStep++;
                 render();
