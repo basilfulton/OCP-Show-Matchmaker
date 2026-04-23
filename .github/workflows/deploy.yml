@@ -3,12 +3,14 @@ name: Deploy OCP Matchmaker to GitHub Pages
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'index.html'
+      - 'assets/**'
+      - '.nojekyll'
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -16,13 +18,12 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
@@ -38,11 +39,20 @@ jobs:
           VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: cd ocp-matchmaker && npm run build
 
-      - uses: actions/configure-pages@v4
+      - name: Commit built files to root for GitHub Pages
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: ocp-matchmaker/dist
+          cp ocp-matchmaker/dist/index.html index.html
+          cp -r ocp-matchmaker/dist/assets assets
+          touch .nojekyll
 
-      - uses: actions/deploy-pages@v4
-        id: deployment
+          git add index.html assets/ .nojekyll --force
+
+          if git diff --cached --quiet; then
+            echo "No changes — build output is unchanged."
+          else
+            git commit -m "chore: build OCP Matchmaker [skip ci]"
+            git push origin main
+          fi

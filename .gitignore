@@ -3,3 +3,7 @@ node_modules/
 .env.local
 .DS_Store
 ocp-matchmaker/dist/
+
+# Built output at root — committed by CI only
+/index.html
+/assets/
