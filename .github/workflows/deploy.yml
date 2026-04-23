@@ -42,11 +42,15 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Wipe previous build output before copying so stale files don't accumulate
+          rm -rf index.html assets .nojekyll
+
           cp ocp-matchmaker/dist/index.html index.html
           cp -r ocp-matchmaker/dist/assets assets
           touch .nojekyll
 
           git add index.html assets/ .nojekyll --force
+          git add -u index.html assets/ .nojekyll  # stage deletions of any removed files
 
           if git diff --cached --quiet; then
             echo "No changes — build output is unchanged."
